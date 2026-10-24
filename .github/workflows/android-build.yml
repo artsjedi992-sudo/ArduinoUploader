@@ -1,0 +1,40 @@
+name: Build ArduinoUploader APK
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Изтегляне на проекта
+        uses: actions/checkout@v4
+
+      - name: Настройка на Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Настройка на Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Инсталиране на Android SDK 35
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Компилация на APK
+        run: gradle --no-daemon assembleDebug
+
+      - name: Запазване на APK като артефакт
+        uses: actions/upload-artifact@v4
+        with:
+          name: ArduinoUploader-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
