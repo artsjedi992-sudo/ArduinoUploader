@@ -14,6 +14,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
@@ -50,6 +51,7 @@ public class MainActivity extends Activity {
     private ProgressBar progressBar;
     private Button connectButton;
     private Button uploadButton;
+    private EditText firmwareUrlInput;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     private final BroadcastReceiver usbReceiver = new BroadcastReceiver() {
@@ -107,6 +109,16 @@ public class MainActivity extends Activity {
         Button chooseButton = makeButton("2. Избери HEX файл от телефона");
         chooseButton.setOnClickListener(v -> chooseHex());
         root.addView(chooseButton);
+
+        firmwareUrlInput = new EditText(this);
+        firmwareUrlInput.setSingleLine(true);
+        firmwareUrlInput.setTextSize(14);
+        firmwareUrlInput.setHint("HTTPS адрес към .hex файл (по избор)");
+        firmwareUrlInput.setText("https://raw.githubusercontent.com/");
+        root.addView(firmwareUrlInput);
+        Button downloadButton = makeButton("Изтегли HEX от интернет / GitHub");
+        downloadButton.setOnClickListener(v -> downloadHexFromUrl());
+        root.addView(downloadButton);
 
         uploadButton = makeButton("3. Запиши фърмуера");
         uploadButton.setEnabled(false);
@@ -232,6 +244,54 @@ public class MainActivity extends Activity {
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> setStatus("Неуспешно зареждане на HEX: " + e.getMessage()));
+            }
+        });
+    }
+
+    /** Изтегля HEX от директен HTTPS адрес, след което проверява Intel HEX контролните суми. */
+    private void downloadHexFromUrl() {
+        String address = firmwareUrlInput.getText().toString().trim();
+        if (!address.startsWith("https://")) {
+            setStatus("За безопасност се приемат само HTTPS адреси към суровия .hex файл.");
+            return;
+        }
+        setStatus("Изтегляне на HEX файл…");
+        executor.execute(() -> {
+            HttpURLConnection connection = null;
+            try {
+                URL url = new URL(address);
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setConnectTimeout(15000);
+                connection.setReadTimeout(20000);
+                connection.setInstanceFollowRedirects(true);
+                connection.setRequestProperty("User-Agent", "ArduinoUploader-Android");
+                int code = connection.getResponseCode();
+                if (code < 200 || code >= 300) throw new Exception("HTTP грешка: " + code);
+                try (InputStream in = connection.getInputStream(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+                    byte[] buffer = new byte[4096];
+                    int n;
+                    while ((n = in.read(buffer)) > 0) {
+                        if (out.size() + n > 1024 * 1024) throw new Exception("HEX файлът е прекалено голям.");
+                        out.write(buffer, 0, n);
+                    }
+                    HexParser.Image parsed = HexParser.parse(out.toByteArray());
+                    String name = url.getPath();
+                    int slash = name.lastIndexOf('/');
+                    name = slash >= 0 ? name.substring(slash + 1) : name;
+                    if (name.isEmpty()) name = "firmware.hex";
+                    final String finalName = name;
+                    runOnUiThread(() -> {
+                        firmware = parsed;
+                        firmwareName = finalName;
+                        fileLabel.setText("Файл: " + firmwareName + "\\nРазмер на образа: " + (parsed.highestAddress + 1) + " байта");
+                        setStatus("HEX изтеглен и проверен успешно.");
+                        updateButtons();
+                    });
+                }
+            } catch (Exception e) {
+                runOnUiThread(() -> setStatus("Неуспешно изтегляне: " + e.getMessage()));
+            } finally {
+                if (connection != null) connection.disconnect();
             }
         });
     }
