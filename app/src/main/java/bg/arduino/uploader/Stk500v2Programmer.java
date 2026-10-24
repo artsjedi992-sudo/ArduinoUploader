@@ -105,7 +105,8 @@ public final class Stk500v2Programmer {
             int xor = start ^ seq ^ hi ^ lo ^ token;
             for (byte b : response) xor ^= b & 0xFF;
             if (xor != 0) throw new IOException("Грешна контролна сума в отговора.");
-            if ((response[0] & 0xFF) != ((command | 0x80) & 0xFF))
+            // При STK500v2 отговорът повтаря идентификатора на изпратената команда.
+            if ((response[0] & 0xFF) != (command & 0xFF))
                 throw new IOException("Неочакван отговор от bootloader-а.");
             return Arrays.copyOf(response, size);
         }
