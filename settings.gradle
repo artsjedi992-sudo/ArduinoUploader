@@ -3,7 +3,12 @@ pluginManagement {
 }
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-    repositories { google(); mavenCentral() }
+    repositories {
+        google()
+        mavenCentral()
+        // Библиотеката USB Serial for Android се публикува чрез JitPack.
+        maven { url = uri("https://jitpack.io") }
+    }
 }
 rootProject.name = "ArduinoUploader"
 include(":app")
