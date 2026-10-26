@@ -204,8 +204,9 @@ public class MainActivity extends Activity {
             serialPort = chosen.getPorts().get(0);
             serialPort.open(usbConnection);
             serialPort.setParameters(115200, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE);
-            serialPort.setDTR(true);
-            serialPort.setRTS(true);
+            // Не оставяме излишно RTS активен; DTR ще се превключи непосредствено преди запис.
+            // При Arduino Mega DTR се използва за автоматично рестартиране през USB интерфейса.
+            serialPort.setDTR(false);
             deviceLabel.setText("Платка: USB свързана • " + hex(device.getVendorId()) + "/" + hex(device.getProductId()));
             setStatus("USB портът е отворен. Следва проверка на STK500v2 bootloader при запис.");
             updateButtons();
@@ -319,8 +320,15 @@ public class MainActivity extends Activity {
         final HexParser.Image image = firmware;
         executor.execute(() -> {
             try {
-                // Кратко изчакване след отваряне на сериен порт; Mega bootloader може да се рестартира чрез DTR.
-                Thread.sleep(1800);
+                // Рестартираме Mega непосредствено преди запис, а не при първото свързване.
+                // DTR се превключва, за да се генерира импулсът за автоматичен reset.
+                port.setDTR(false);
+                Thread.sleep(100);
+                port.setDTR(true);
+                Thread.sleep(100);
+                port.setDTR(false);
+                // Изчакваме кратко bootloader-ът да стартира, но не пропускаме прозореца му.
+                Thread.sleep(300);
                 new Stk500v2Programmer(port).upload(image, (written, total) -> runOnUiThread(() -> {
                     int percent = total == 0 ? 0 : (int)(written * 100L / total);
                     progressBar.setProgress(percent);
