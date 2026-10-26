@@ -121,11 +121,32 @@ public final class Stk500v2Programmer {
 
     private void readExact(byte[] buffer, long deadline) throws IOException {
         int offset = 0;
+        // При някои Android/USB комбинации четенето връща временна грешка GET_STATUS,
+        // въпреки че USB устройството още е отворено. Не прекратяваме веднага handshake-а.
         while (offset < buffer.length && System.currentTimeMillis() < deadline) {
-            int count = port.read(buffer, Math.min(500, (int)Math.max(1, deadline - System.currentTimeMillis())));
-            if (count > 0) offset += count;
+            int timeout = Math.min(300, (int)Math.max(1, deadline - System.currentTimeMillis()));
+            try {
+                int count = port.read(buffer, timeout);
+                if (count > 0) {
+                    offset += count;
+                }
+            } catch (IOException e) {
+                String message = e.getMessage();
+                // Само тази конкретна грешка се повтаря до крайния срок; другите грешки се запазват.
+                if (message == null || !message.contains("USB get_status request failed")) {
+                    throw e;
+                }
+                try {
+                    Thread.sleep(40);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Операцията е прекъсната.", interrupted);
+                }
+            }
         }
-        if (offset != buffer.length) throw new IOException("USB връзката прекъсна или bootloader-ът не отговори.");
+        if (offset != buffer.length) {
+            throw new IOException("Няма отговор от bootloader-а в рамките на 5 секунди. Провери автоматичния RESET, USB OTG кабела и дали на платката е стандартният bootloader за Mega 2560.");
+        }
     }
 
     private void checkStatus(byte[] response, String operation) throws IOException {
