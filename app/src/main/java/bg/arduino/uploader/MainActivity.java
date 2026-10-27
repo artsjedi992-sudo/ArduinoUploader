@@ -327,8 +327,9 @@ public class MainActivity extends Activity {
                 port.setDTR(true);
                 Thread.sleep(100);
                 port.setDTR(false);
-                // Изчакваме кратко bootloader-ът да стартира, но не пропускаме прозореца му.
-                Thread.sleep(300);
+                // Mega 2560 може да има нужда от повече време след RESET за стартиране на STK500v2 bootloader-а.
+                // Изчакваме 1,2 секунди, преди да изпратим първата команда, за да не я изгуби bootloader-ът.
+                Thread.sleep(1200);
                 new Stk500v2Programmer(port).upload(image, (written, total) -> runOnUiThread(() -> {
                     int percent = total == 0 ? 0 : (int)(written * 100L / total);
                     progressBar.setProgress(percent);
