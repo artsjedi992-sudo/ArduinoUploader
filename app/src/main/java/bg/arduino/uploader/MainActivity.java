@@ -46,6 +46,7 @@ public class MainActivity extends Activity {
     private UsbManager usbManager;
     private UsbSerialPort serialPort;
     private UsbDeviceConnection usbConnection;
+    private String usbDiagnostics = "USB диагностиката не е налична.";
     private HexParser.Image firmware;
     private BoardProfile.Board selectedBoard = BoardProfile.Board.MEGA2560;
     private String firmwareName = "Няма избран файл";
@@ -226,11 +227,32 @@ public class MainActivity extends Activity {
             serialPort = chosen.getPorts().get(0);
             serialPort.open(usbConnection);
             serialPort.setParameters(115200, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE);
-            // Не оставяме излишно RTS активен; DTR ще се превключи непосредствено преди запис.
-            // При Arduino Mega DTR се използва за автоматично рестартиране през USB интерфейса.
+            // DTR се активира непосредствено преди upload за reset и готов CDC сериен канал.
             serialPort.setDTR(false);
+            StringBuilder diagnostic = new StringBuilder();
+            diagnostic.append("Драйвер: ").append(chosen.getClass().getName())
+                    .append("; сериен портове: ").append(chosen.getPorts().size())
+                    .append("; избран порт: ").append(serialPort.getPortNumber())
+                    .append("; VID/PID: ").append(hex(device.getVendorId())).append("/")
+                    .append(hex(device.getProductId())).append("; интерфейси: ");
+            for (int i = 0; i < device.getInterfaceCount(); i++) {
+                android.hardware.usb.UsbInterface usbInterface = device.getInterface(i);
+                if (i > 0) diagnostic.append(" | ");
+                diagnostic.append("#").append(i)
+                        .append(" class=").append(hex(usbInterface.getInterfaceClass()))
+                        .append(" subclass=").append(hex(usbInterface.getInterfaceSubclass()))
+                        .append(" protocol=").append(hex(usbInterface.getInterfaceProtocol()))
+                        .append(" endpoints=").append(usbInterface.getEndpointCount());
+                for (int j = 0; j < usbInterface.getEndpointCount(); j++) {
+                    android.hardware.usb.UsbEndpoint endpoint = usbInterface.getEndpoint(j);
+                    diagnostic.append(" [addr=").append(hex(endpoint.getAddress()))
+                            .append(",type=").append(endpoint.getType())
+                            .append(",dir=").append(endpoint.getDirection()).append("]");
+                }
+            }
+            usbDiagnostics = diagnostic.toString();
             deviceLabel.setText("Платка: USB свързана • " + hex(device.getVendorId()) + "/" + hex(device.getProductId()));
-            setStatus("USB портът е отворен. Bootloader-ът ще бъде проверен при запис според избрания модел платка.");
+            setStatus("USB портът е отворен при 115200 8N1. " + usbDiagnostics);
             updateButtons();
         } catch (Exception e) {
             closeUsb();
@@ -436,7 +458,9 @@ public class MainActivity extends Activity {
                     setStatus("Командите за запис са изпратени успешно. Препоръчва се функционална проверка на платката.");
                 });
             } catch (Exception e) {
-                runOnUiThread(() -> setStatus("ГРЕШКА при запис: " + e.getMessage() + "\nНе изключвай захранването веднага; изчакай и опитай отново."));
+                runOnUiThread(() -> setStatus("ГРЕШКА при запис: " + e.getMessage()
+                        + "\nUSB диагностика: " + usbDiagnostics
+                        + "\nНе изключвай захранването веднага; изчакай и опитай отново."));
             } finally {
                 runOnUiThread(() -> {
                     connectButton.setEnabled(true);
