@@ -338,6 +338,7 @@ public class MainActivity extends Activity {
         progressLabel.setText("0%");
         final UsbSerialPort port = serialPort;
         final HexParser.Image image = firmware;
+        final BoardProfile.Board board = selectedBoard;
         executor.execute(() -> {
             try {
                 // Рестартираме Mega непосредствено преди запис, а не при първото свързване.
@@ -348,8 +349,8 @@ public class MainActivity extends Activity {
                 Thread.sleep(100);
                 port.setDTR(false);
                 // Optiboot на UNO има кратък прозорец за свързване; Mega bootloader-ът стартира по-бавно.
-                Thread.sleep(selectedBoard == BoardProfile.Board.UNO ? 120 : 1200);
-                if (selectedBoard == BoardProfile.Board.UNO) {
+                Thread.sleep(board == BoardProfile.Board.UNO ? 120 : 1200);
+                if (board == BoardProfile.Board.UNO) {
                     new Stk500v1Programmer(port).upload(image, (written, total) -> runOnUiThread(() -> {
                         int percent = total == 0 ? 0 : (int)(written * 100L / total);
                         progressBar.setProgress(percent);
