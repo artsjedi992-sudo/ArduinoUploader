@@ -108,7 +108,7 @@ public final class Stk500v1Programmer {
         port.write(packet.toByteArray(), 2500);
 
         int expectedData = command == CMD_READ_FLASH ? PAGE_SIZE : 0;
-        byte[] response = readExact(expectedData + 2, command == CMD_STK_GET_SYNC ? 350 : 3000);
+        byte[] response = readExact(expectedData + 2, command == CMD_STK_GET_SYNC ? 1200 : 3000);
         if ((response[0] & 0xFF) != STK_INSYNC || (response[response.length - 1] & 0xFF) != STK_OK) {
             throw new IOException("Неочакван STK500v1 отговор от UNO bootloader-а.");
         }
@@ -127,7 +127,16 @@ public final class Stk500v1Programmer {
                 offset += count;
             }
         }
-        if (offset != length) throw new IOException("Няма пълен отговор от UNO bootloader-а.");
+        if (offset != length) {
+            StringBuilder received = new StringBuilder();
+            for (int i = 0; i < offset; i++) {
+                if (i > 0) received.append(' ');
+                received.append(String.format("%02X", response[i] & 0xFF));
+            }
+            throw new IOException("Няма пълен отговор от UNO bootloader-а (получени "
+                    + offset + "/" + length + " байта; данни: "
+                    + (offset == 0 ? "няма" : received.toString()) + ").");
+        }
         return response;
     }
 }
