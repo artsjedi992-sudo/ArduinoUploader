@@ -418,14 +418,17 @@ public class MainActivity extends Activity {
                 // Някои USB-UART адаптери/Android драйвери отказват controlTransfer за DTR.
                 boolean automaticReset = true;
                 try {
-                    // DTR assertion creates the Uno reset edge. Keep it asserted so CDC serial
-                    // remains ready while Optiboot initializes and receives STK_GET_SYNC.
+                    // DTR/RTS reset sequence, matching the known-working Kotlin uploader:
+                    // release both control lines, then assert them again before STK_GET_SYNC.
+                    // DTR is the usual Uno auto-reset line; RTS is optional and is tested here
+                    // because some USB-serial adapters expose it differently.
                     port.setDTR(false);
-                    Thread.sleep(250);
-                    // Assert DTR to create the Uno auto-reset edge, then KEEP DTR asserted.
-                    // CDC-ACM Arduino interfaces may require DTR=true for the serial channel
-                    // to be considered open; deasserting it again can close that channel.
+                    try { port.setRTS(false); } catch (Exception ignored) { }
+                    Thread.sleep(50);
+                    // Assert DTR to create the Uno auto-reset edge and keep it asserted so
+                    // CDC-ACM remains ready while Optiboot initializes.
                     port.setDTR(true);
+                    try { port.setRTS(true); } catch (Exception ignored) { }
                     Thread.sleep(600);
                 } catch (Exception resetError) {
                     automaticReset = false;
