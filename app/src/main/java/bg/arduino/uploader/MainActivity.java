@@ -396,9 +396,8 @@ public class MainActivity extends Activity {
                 // Някои USB-UART адаптери/Android драйвери отказват controlTransfer за DTR.
                 boolean automaticReset = true;
                 try {
-                    // DTR is active-low at the Arduino reset circuit. Hold it asserted
-                    // long enough for the 16U2/RESET capacitor, then release and allow
-                    // Optiboot to initialize before sending STK_GET_SYNC.
+                    // DTR assertion creates the Uno reset edge. Keep it asserted so CDC serial
+                    // remains ready while Optiboot initializes and receives STK_GET_SYNC.
                     port.setDTR(false);
                     Thread.sleep(250);
                     // Assert DTR to create the Uno auto-reset edge, then KEEP DTR asserted.
