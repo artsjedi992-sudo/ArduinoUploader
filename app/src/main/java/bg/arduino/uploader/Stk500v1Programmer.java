@@ -43,7 +43,10 @@ public final class Stk500v1Programmer {
                 Arrays.fill(page, (byte) 0xFF);
                 System.arraycopy(image.data, address, page, 0, length);
 
-                byte[] program = new byte[page.length + 2];
+                // STK_PROG_PAGE parameters: length (2 bytes), page data, memory type.
+                // Keep the trailing 'F' outside the 128-byte page; otherwise the final
+                // firmware byte is overwritten by the memory-type marker.
+                byte[] program = new byte[page.length + 3];
                 program[0] = (byte) (page.length >>> 8);
                 program[1] = (byte) page.length;
                 System.arraycopy(page, 0, program, 2, page.length);
