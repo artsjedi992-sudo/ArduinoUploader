@@ -36,7 +36,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** Основен екран: свързване, избор на HEX файл и качване към Mega 2560. */
+/** Основен екран: свързване, избор на HEX файл и качване към UNO или Mega 2560. */
 public class MainActivity extends Activity {
     private static final int PICK_HEX = 1001;
     private static final String ACTION_USB_PERMISSION = "bg.arduino.uploader.USB_PERMISSION";
@@ -341,7 +341,7 @@ public class MainActivity extends Activity {
         final BoardProfile.Board board = selectedBoard;
         executor.execute(() -> {
             try {
-                // Рестартираме Mega непосредствено преди запис, а не при първото свързване.
+                // Рестартираме избраната платка непосредствено преди запис, а не при първото свързване.
                 // DTR се превключва, за да се генерира импулсът за автоматичен reset.
                 port.setDTR(false);
                 Thread.sleep(100);
