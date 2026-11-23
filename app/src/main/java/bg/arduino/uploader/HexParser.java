@@ -23,6 +23,9 @@ public final class HexParser {
     /** Парсира всички записи и проверява контролните им суми. */
     public static Image parse(byte[] fileBytes) throws Exception {
         String text = new String(fileBytes, StandardCharsets.US_ASCII);
+        // Accept a UTF-8 BOM sometimes added by editors or file providers.
+        if (!text.isEmpty() && text.charAt(0) == '\uFEFF') text = text.substring(1);
+        text = text.replace("\r", "");
         Map<Integer, Byte> memory = new TreeMap<>();
         int upperAddress = 0;
         int highest = -1;
