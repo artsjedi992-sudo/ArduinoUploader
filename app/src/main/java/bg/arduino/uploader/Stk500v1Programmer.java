@@ -12,7 +12,7 @@ public final class Stk500v1Programmer {
 
     private static final int CMD_ENTER_PROGMODE = 'P';
     private static final int CMD_LEAVE_PROGMODE = 'Q';
-    private static final int CMD_LOAD_ADDRESS = 'A';
+    private static final int CMD_LOAD_ADDRESS = 'U';
     private static final int CMD_PROGRAM_FLASH = 'd';
     private static final int CMD_READ_FLASH = 't';
     private static final int CMD_STK_GET_SYNC = 0x30;
@@ -69,14 +69,6 @@ public final class Stk500v1Programmer {
         }
     }
 
-    /* Legacy device parameters are intentionally unused: Optiboot does not need STK_SET_DEVICE. */
-    private byte[] unusedDeviceParameters() {
-        return new byte[]{
-                (byte) 0x13, (byte) 0x95, (byte) 0x0F, (byte) 0x74, (byte) 0x2E, (byte) 0xFF, (byte) 0xFF,
-                (byte) 0xFF, (byte) 0xFF, (byte) 0xC0, (byte) 0x00, (byte) 0xD9, (byte) 0xC9, (byte) 0x32,
-                (byte) 0xF1, (byte) 0xA3, (byte) 0x2A, (byte) 0x20, (byte) 0x43, (byte) 0x00
-        };
-    }
 
     private void getSync() throws IOException {
         for (int attempt = 0; attempt < 4; attempt++) {
