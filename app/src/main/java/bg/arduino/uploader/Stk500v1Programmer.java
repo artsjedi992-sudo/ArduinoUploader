@@ -15,8 +15,7 @@ public final class Stk500v1Programmer {
     private static final int CMD_LOAD_ADDRESS = 'A';
     private static final int CMD_PROGRAM_FLASH = 'd';
     private static final int CMD_READ_FLASH = 't';
-    private static final int CMD_STK_SET_DEVICE = 'B';
-    private static final int CMD_STK_GET_SYNC = 'u';
+    private static final int CMD_STK_GET_SYNC = 0x30;
     private static final int STK_OK = 0x10;
     private static final int STK_INSYNC = 0x14;
     private static final int PAGE_SIZE = 128;
@@ -33,7 +32,6 @@ public final class Stk500v1Programmer {
         }
         drain();
         getSync();
-        command(CMD_STK_SET_DEVICE, deviceParameters());
         command(CMD_ENTER_PROGMODE, null);
 
         int total = image.data.length;
@@ -71,7 +69,8 @@ public final class Stk500v1Programmer {
         }
     }
 
-    private byte[] deviceParameters() {
+    /* Legacy device parameters are intentionally unused: Optiboot does not need STK_SET_DEVICE. */
+    private byte[] unusedDeviceParameters() {
         return new byte[]{
                 (byte) 0x13, (byte) 0x95, (byte) 0x0F, (byte) 0x74, (byte) 0x2E, (byte) 0xFF, (byte) 0xFF,
                 (byte) 0xFF, (byte) 0xFF, (byte) 0xC0, (byte) 0x00, (byte) 0xD9, (byte) 0xC9, (byte) 0x32,
@@ -109,7 +108,6 @@ public final class Stk500v1Programmer {
 
     private byte[] command(int command, byte[] parameters) throws IOException {
         ByteArrayOutputStream packet = new ByteArrayOutputStream();
-        packet.write(0x30);
         packet.write(command);
         if (parameters != null) packet.write(parameters, 0, parameters.length);
         packet.write(0x20);
