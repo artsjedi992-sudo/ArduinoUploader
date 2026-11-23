@@ -407,8 +407,9 @@ public class MainActivity extends Activity {
                     runOnUiThread(() -> setStatus("USB адаптерът отказа автоматичния DTR reset ("
                             + resetError.getMessage() + "). Натисни RESET на Arduino UNO сега; "
                             + "ще опитам да се синхронизирам ръчно."));
-                    // Даваме време за ръчно натискане на RESET преди опитите за STK500 sync.
-                    Thread.sleep(2500);
+                    // Започваме STK500 sync веднага и продължаваме да опитваме.
+                    // Потребителят може да натисне RESET по време на прозореца за синхронизация;
+                    // изчакване тук би могло да пропусне краткия прозорец на bootloader-а.
                 }
                 // Mega bootloader-ът стартира по-бавно; UNO следва времето на AVRDUDE.
                 if (board == BoardProfile.Board.MEGA2560) Thread.sleep(1100);
