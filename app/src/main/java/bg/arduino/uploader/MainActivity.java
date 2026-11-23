@@ -401,10 +401,11 @@ public class MainActivity extends Activity {
                     // Optiboot to initialize before sending STK_GET_SYNC.
                     port.setDTR(false);
                     Thread.sleep(250);
+                    // Assert DTR to create the Uno auto-reset edge, then KEEP DTR asserted.
+                    // CDC-ACM Arduino interfaces may require DTR=true for the serial channel
+                    // to be considered open; deasserting it again can close that channel.
                     port.setDTR(true);
-                    Thread.sleep(100);
-                    port.setDTR(false);
-                    Thread.sleep(500);
+                    Thread.sleep(600);
                 } catch (Exception resetError) {
                     automaticReset = false;
                     runOnUiThread(() -> setStatus("USB адаптерът отказа автоматичния DTR reset ("
