@@ -126,9 +126,12 @@ public final class Stk500v2Programmer {
         while (offset < buffer.length && System.currentTimeMillis() < deadline) {
             int timeout = Math.min(300, (int)Math.max(1, deadline - System.currentTimeMillis()));
             try {
-                int count = port.read(buffer, timeout);
+                byte[] chunk = new byte[buffer.length - offset];
+                int count = port.read(chunk, timeout);
                 if (count > 0) {
-                    offset += count;
+                    int copied = Math.min(count, buffer.length - offset);
+                    System.arraycopy(chunk, 0, buffer, offset, copied);
+                    offset += copied;
                 }
             } catch (IOException e) {
                 String message = e.getMessage();
