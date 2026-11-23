@@ -413,23 +413,15 @@ public class MainActivity extends Activity {
         final BoardProfile.Board board = selectedBoard;
         executor.execute(() -> {
             try {
-                // AVRDUDE arduino_open(): освобождаваме DTR, изчакваме 250 ms,
-                // подаваме кратък reset импулс (100 us), освобождаваме DTR и чакаме 100 ms.
-                // Някои USB-UART адаптери/Android драйвери отказват controlTransfer за DTR.
+                // UNO R3 профилът в ArduinoGPTHex използва DTR reset и 250 ms
+                // изчакване след отваряне на серийния порт. Не превключваме RTS тук:
+                // за автоматичния reset на UNO е необходим DTR.
                 boolean automaticReset = true;
                 try {
-                    // DTR/RTS reset sequence, matching the known-working Kotlin uploader:
-                    // release both control lines, then assert them again before STK_GET_SYNC.
-                    // DTR is the usual Uno auto-reset line; RTS is optional and is tested here
-                    // because some USB-serial adapters expose it differently.
                     port.setDTR(false);
-                    try { port.setRTS(false); } catch (Exception ignored) { }
                     Thread.sleep(50);
-                    // Assert DTR to create the Uno auto-reset edge and keep it asserted so
-                    // CDC-ACM remains ready while Optiboot initializes.
                     port.setDTR(true);
-                    try { port.setRTS(true); } catch (Exception ignored) { }
-                    Thread.sleep(600);
+                    Thread.sleep(250);
                 } catch (Exception resetError) {
                     automaticReset = false;
                     runOnUiThread(() -> setStatus("USB адаптерът отказа автоматичния DTR reset ("
