@@ -10,6 +10,8 @@ import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbDeviceConnection;
 import android.hardware.usb.UsbManager;
 import android.net.Uri;
+import android.database.Cursor;
+import android.provider.OpenableColumns;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
@@ -241,30 +243,78 @@ public class MainActivity extends Activity {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("*/*");
-        startActivityForResult(intent, PICK_HEX);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        try {
+            startActivityForResult(intent, PICK_HEX);
+            setStatus("Избери .hex файла от файловия мениджър.");
+        } catch (Exception e) {
+            Intent fallback = new Intent(Intent.ACTION_GET_CONTENT);
+            fallback.addCategory(Intent.CATEGORY_OPENABLE);
+            fallback.setType("*/*");
+            fallback.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            try {
+                startActivityForResult(Intent.createChooser(fallback, "Избери HEX файл"), PICK_HEX);
+                setStatus("Избери .hex файла от файловия мениджър.");
+            } catch (Exception fallbackError) {
+                setStatus("Не може да се отвори файловият мениджър: " + fallbackError.getMessage());
+            }
+        }
+    }
+
+    private String getDisplayName(Uri uri) {
+        try (Cursor cursor = getContentResolver().query(uri,
+                new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                int index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                if (index >= 0) return cursor.getString(index);
+            }
+        } catch (Exception ignored) { }
+        String segment = uri.getLastPathSegment();
+        return segment == null || segment.isEmpty() ? "HEX файл" : segment;
     }
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode != PICK_HEX || resultCode != RESULT_OK || data == null || data.getData() == null) return;
-        Uri uri = data.getData();
+        if (requestCode != PICK_HEX) return;
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) {
+            setStatus("Не е избран файл (изборът е отказан или файловият мениджър не върна URI).");
+            return;
+        }
+        final Uri uri = data.getData();
+        final String selectedName = getDisplayName(uri);
+        fileLabel.setText("Файл: зарежда се — " + selectedName);
+        setStatus("Файлът е избран. Проверявам Intel HEX съдържанието…");
+        try {
+            if (Build.VERSION.SDK_INT >= 19 && (data.getFlags() & Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION) != 0) {
+                getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            }
+        } catch (Exception ignored) { }
         executor.execute(() -> {
             try (InputStream in = getContentResolver().openInputStream(uri);
                  ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-                if (in == null) throw new Exception("Файлът не може да бъде отворен.");
-                byte[] buffer = new byte[4096];
+                if (in == null) throw new Exception("Доставчикът на файла не позволи прочитането му.");
+                byte[] buffer = new byte[8192];
                 int n;
-                while ((n = in.read(buffer)) > 0) out.write(buffer, 0, n);
+                while ((n = in.read(buffer)) != -1) {
+                    if (out.size() + n > 1024 * 1024) throw new Exception("HEX файлът е по-голям от 1 MB.");
+                    if (n > 0) out.write(buffer, 0, n);
+                }
                 HexParser.Image parsed = HexParser.parse(out.toByteArray());
                 runOnUiThread(() -> {
                     firmware = parsed;
-                    firmwareName = uri.getLastPathSegment() == null ? "HEX файл" : uri.getLastPathSegment();
+                    firmwareName = selectedName;
                     fileLabel.setText("Файл: " + firmwareName + "\nРазмер на образа: " + (parsed.highestAddress + 1) + " байта");
-                    setStatus("HEX файлът е валиден. Проверени са записите и контролните им суми.");
+                    setStatus("HEX файлът е зареден и валидиран успешно.");
                     updateButtons();
                 });
             } catch (Exception e) {
-                runOnUiThread(() -> setStatus("Неуспешно зареждане на HEX: " + e.getMessage()));
+                runOnUiThread(() -> {
+                    firmware = null;
+                    firmwareName = "Няма избран валиден HEX файл";
+                    fileLabel.setText("Файл: " + selectedName + " (грешка при зареждане)");
+                    setStatus("Неуспешно зареждане на '" + selectedName + "': " + e.getMessage());
+                    updateButtons();
+                });
             }
         });
     }
