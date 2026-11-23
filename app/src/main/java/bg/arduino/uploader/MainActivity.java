@@ -17,6 +17,8 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -43,6 +45,7 @@ public class MainActivity extends Activity {
     private UsbSerialPort serialPort;
     private UsbDeviceConnection usbConnection;
     private HexParser.Image firmware;
+    private BoardProfile.Board selectedBoard = BoardProfile.Board.MEGA2560;
     private String firmwareName = "Няма избран файл";
     private TextView status;
     private TextView fileLabel;
@@ -73,7 +76,7 @@ public class MainActivity extends Activity {
         IntentFilter filter = new IntentFilter(ACTION_USB_PERMISSION);
         if (Build.VERSION.SDK_INT >= 33) registerReceiver(usbReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
         else registerReceiver(usbReceiver, filter);
-        setStatus("Готово. Свържи Arduino Mega 2560 с USB OTG кабел.");
+        setStatus("Готово. Избери UNO или Mega 2560 и свържи платката с USB OTG.");
         refreshUsbList();
     }
 
@@ -93,10 +96,27 @@ public class MainActivity extends Activity {
         root.addView(title);
 
         TextView subtitle = new TextView(this);
-        subtitle.setText("Фърмуер за Arduino Mega 2560 • USB OTG");
+        subtitle.setText("Качване на готов HEX към Arduino UNO / Mega • USB OTG");
         subtitle.setTextSize(14);
         subtitle.setTextColor(0xFF425466);
         root.addView(subtitle);
+
+        RadioGroup boardGroup = new RadioGroup(this);
+        boardGroup.setOrientation(RadioGroup.HORIZONTAL);
+        RadioButton unoOption = new RadioButton(this);
+        unoOption.setText("Arduino UNO");
+        unoOption.setId(View.generateViewId());
+        RadioButton megaOption = new RadioButton(this);
+        megaOption.setText("Mega 2560");
+        megaOption.setId(View.generateViewId());
+        boardGroup.addView(unoOption);
+        boardGroup.addView(megaOption);
+        megaOption.setChecked(true);
+        boardGroup.setOnCheckedChangeListener((group, checkedId) -> {
+            selectedBoard = checkedId == unoOption.getId() ? BoardProfile.Board.UNO : BoardProfile.Board.MEGA2560;
+            setStatus("Избрана платка: " + selectedBoard.label + ". Използвай HEX, компилиран за същия модел.");
+        });
+        root.addView(boardGroup);
 
         deviceLabel = makeLabel("Платка: не е свързана");
         root.addView(deviceLabel);
@@ -140,7 +160,7 @@ public class MainActivity extends Activity {
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
 
         TextView warning = new TextView(this);
-        warning.setText("Важно: не изключвай USB кабела и захранването по време на запис. Използвай само HEX файл за ATmega2560.");
+        warning.setText("Важно: избери правилния модел платка и HEX за съответния микроконтролер. Не изключвай USB кабела по време на запис.");
         warning.setTextSize(12);
         warning.setTextColor(0xFF8A3B12);
         warning.setPadding(0, dp(8), 0, 0);
@@ -208,7 +228,7 @@ public class MainActivity extends Activity {
             // При Arduino Mega DTR се използва за автоматично рестартиране през USB интерфейса.
             serialPort.setDTR(false);
             deviceLabel.setText("Платка: USB свързана • " + hex(device.getVendorId()) + "/" + hex(device.getProductId()));
-            setStatus("USB портът е отворен. Следва проверка на STK500v2 bootloader при запис.");
+            setStatus("USB портът е отворен. Bootloader-ът ще бъде проверен при запис според избрания модел платка.");
             updateButtons();
         } catch (Exception e) {
             closeUsb();
@@ -301,7 +321,7 @@ public class MainActivity extends Activity {
     private void confirmAndUpload() {
         new android.app.AlertDialog.Builder(this)
                 .setTitle("Запис на фърмуер")
-                .setMessage("Ще се запише " + firmwareName + " в Arduino Mega 2560. Не изключвай платката по време на операцията. Продължаваме ли?")
+                .setMessage("Ще се запише " + firmwareName + " в " + selectedBoard.label + ". Не изключвай платката по време на операцията. Продължаваме ли?")
                 .setNegativeButton("Отказ", (d, w) -> { })
                 .setPositiveButton("Запиши", (d, w) -> startUpload())
                 .show();
@@ -330,12 +350,21 @@ public class MainActivity extends Activity {
                 // Mega 2560 може да има нужда от повече време след RESET за стартиране на STK500v2 bootloader-а.
                 // Изчакваме 1,2 секунди, преди да изпратим първата команда, за да не я изгуби bootloader-ът.
                 Thread.sleep(1200);
-                new Stk500v2Programmer(port).upload(image, (written, total) -> runOnUiThread(() -> {
+                if (selectedBoard == BoardProfile.Board.UNO) {
+                    new Stk500v1Programmer(port).upload(image, (written, total) -> runOnUiThread(() -> {
+                        int percent = total == 0 ? 0 : (int)(written * 100L / total);
+                        progressBar.setProgress(percent);
+                        progressLabel.setText(percent + "% (" + written + " / " + total + " байта)");
+                        setStatus("Записва се фърмуерът за UNO…");
+                    }));
+                } else {
+                    new Stk500v2Programmer(port).upload(image, (written, total) -> runOnUiThread(() -> {
                     int percent = total == 0 ? 0 : (int)(written * 100L / total);
                     progressBar.setProgress(percent);
                     progressLabel.setText(percent + "% (" + written + " / " + total + " байта)");
-                    setStatus("Записва се фърмуерът…");
-                }));
+                    setStatus("Записва се фърмуерът за Mega 2560…");
+                    }));
+                }
                 runOnUiThread(() -> {
                     progressBar.setProgress(100);
                     progressLabel.setText("100%");
