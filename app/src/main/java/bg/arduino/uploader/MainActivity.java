@@ -341,15 +341,27 @@ public class MainActivity extends Activity {
         final BoardProfile.Board board = selectedBoard;
         executor.execute(() -> {
             try {
-                // Рестартираме избраната платка непосредствено преди запис, а не при първото свързване.
-                // DTR се превключва, за да се генерира импулсът за автоматичен reset.
-                port.setDTR(false);
-                Thread.sleep(100);
-                port.setDTR(true);
-                Thread.sleep(100);
-                port.setDTR(false);
-                // Optiboot на UNO има кратък прозорец за свързване; Mega bootloader-ът стартира по-бавно.
-                Thread.sleep(board == BoardProfile.Board.UNO ? 120 : 1200);
+                // AVRDUDE arduino_open(): освобождаваме DTR, изчакваме 250 ms,
+                // подаваме кратък reset импулс (100 us), освобождаваме DTR и чакаме 100 ms.
+                // Някои USB-UART адаптери/Android драйвери отказват controlTransfer за DTR.
+                boolean automaticReset = true;
+                try {
+                    port.setDTR(false);
+                    Thread.sleep(250);
+                    port.setDTR(true);
+                    Thread.sleep(0, 100_000);
+                    port.setDTR(false);
+                    Thread.sleep(100);
+                } catch (Exception resetError) {
+                    automaticReset = false;
+                    runOnUiThread(() -> setStatus("USB адаптерът отказа автоматичния DTR reset ("
+                            + resetError.getMessage() + "). Натисни RESET на Arduino UNO сега; "
+                            + "ще опитам да се синхронизирам ръчно."));
+                    // Даваме време за ръчно натискане на RESET преди опитите за STK500 sync.
+                    Thread.sleep(2500);
+                }
+                // Mega bootloader-ът стартира по-бавно; UNO следва времето на AVRDUDE.
+                if (board == BoardProfile.Board.MEGA2560) Thread.sleep(1100);
                 if (board == BoardProfile.Board.UNO) {
                     new Stk500v1Programmer(port).upload(image, (written, total) -> runOnUiThread(() -> {
                         int percent = total == 0 ? 0 : (int)(written * 100L / total);
