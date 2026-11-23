@@ -71,19 +71,21 @@ public final class Stk500v1Programmer {
 
 
     private void getSync() throws IOException {
-        for (int attempt = 0; attempt < 4; attempt++) {
+        // AVRDUDE повтаря STK_GET_SYNC; по-дългият прозорец позволява и ръчен RESET,
+        // когато Android USB-UART драйверът не поддържа DTR controlTransfer.
+        for (int attempt = 0; attempt < 20; attempt++) {
             try {
                 command(CMD_STK_GET_SYNC, null);
                 return;
             } catch (IOException ignored) { }
             try {
-                Thread.sleep(100);
+                Thread.sleep(250);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new IOException("Операцията е прекъсната.", e);
             }
         }
-        throw new IOException("ATmega328P bootloader-ът не отговори. Провери DTR/RESET и baud 115200.");
+        throw new IOException("UNO bootloader-ът не отговори след 20 опита. Провери RESET, USB кабела и baud 115200.");
     }
 
     private void loadAddress(int byteAddress) throws Exception {
@@ -106,7 +108,7 @@ public final class Stk500v1Programmer {
         port.write(packet.toByteArray(), 2500);
 
         int expectedData = command == CMD_READ_FLASH ? PAGE_SIZE : 0;
-        byte[] response = readExact(expectedData + 2, 3000);
+        byte[] response = readExact(expectedData + 2, command == CMD_STK_GET_SYNC ? 350 : 3000);
         if ((response[0] & 0xFF) != STK_INSYNC || (response[response.length - 1] & 0xFF) != STK_OK) {
             throw new IOException("Неочакван STK500v1 отговор от UNO bootloader-а.");
         }
