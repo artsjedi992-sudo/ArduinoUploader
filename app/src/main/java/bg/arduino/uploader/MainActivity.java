@@ -396,20 +396,22 @@ public class MainActivity extends Activity {
                 // Някои USB-UART адаптери/Android драйвери отказват controlTransfer за DTR.
                 boolean automaticReset = true;
                 try {
+                    // DTR is active-low at the Arduino reset circuit. Hold it asserted
+                    // long enough for the 16U2/RESET capacitor, then release and allow
+                    // Optiboot to initialize before sending STK_GET_SYNC.
                     port.setDTR(false);
                     Thread.sleep(250);
                     port.setDTR(true);
-                    Thread.sleep(0, 100_000);
-                    port.setDTR(false);
                     Thread.sleep(100);
+                    port.setDTR(false);
+                    Thread.sleep(500);
                 } catch (Exception resetError) {
                     automaticReset = false;
                     runOnUiThread(() -> setStatus("USB адаптерът отказа автоматичния DTR reset ("
                             + resetError.getMessage() + "). Натисни RESET на Arduino UNO сега; "
                             + "ще опитам да се синхронизирам ръчно."));
-                    // Започваме STK500 sync веднага и продължаваме да опитваме.
-                    // Потребителят може да натисне RESET по време на прозореца за синхронизация;
-                    // изчакване тук би могло да пропусне краткия прозорец на bootloader-а.
+                    // При отказан DTR оставяме време за ръчен RESET след показване на съобщението.
+                    Thread.sleep(3000);
                 }
                 // Mega bootloader-ът стартира по-бавно; UNO следва времето на AVRDUDE.
                 if (board == BoardProfile.Board.MEGA2560) Thread.sleep(1100);
