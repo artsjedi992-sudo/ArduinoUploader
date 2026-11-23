@@ -347,9 +347,8 @@ public class MainActivity extends Activity {
                 port.setDTR(true);
                 Thread.sleep(100);
                 port.setDTR(false);
-                // Mega 2560 може да има нужда от повече време след RESET за стартиране на STK500v2 bootloader-а.
-                // Изчакваме 1,2 секунди, преди да изпратим първата команда, за да не я изгуби bootloader-ът.
-                Thread.sleep(1200);
+                // Optiboot на UNO има кратък прозорец за свързване; Mega bootloader-ът стартира по-бавно.
+                Thread.sleep(selectedBoard == BoardProfile.Board.UNO ? 120 : 1200);
                 if (selectedBoard == BoardProfile.Board.UNO) {
                     new Stk500v1Programmer(port).upload(image, (written, total) -> runOnUiThread(() -> {
                         int percent = total == 0 ? 0 : (int)(written * 100L / total);
