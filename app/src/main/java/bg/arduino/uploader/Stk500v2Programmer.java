@@ -195,7 +195,7 @@ public final class Stk500v2Programmer {
         int checksum = 0;
         for (int i = 0; i < packet.length - 1; i++) checksum ^= packet[i] & 0xFF;
         packet[packet.length - 1] = (byte) checksum;
-        port.write(packet, 2500);
+        port.write(packet, 1000);
 
         long deadline = System.currentTimeMillis() + 5000;
         while (System.currentTimeMillis() < deadline) {
