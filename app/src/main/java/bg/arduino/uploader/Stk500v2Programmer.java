@@ -192,7 +192,9 @@ public final class Stk500v2Programmer {
     }
 
     private void spiRead(byte[] spiBytes) throws Exception {
-        byte[] payload = new byte[8];
+        // STK500v2 reference frame: command + numTx + numRx + rxStart + 4 TX bytes.
+        // The command byte is added by command(), so parameters are exactly 7 bytes.
+        byte[] payload = new byte[7];
         payload[0] = 4; // numTx
         payload[1] = 4; // numRx
         payload[2] = 0; // rxStartAddr
