@@ -227,19 +227,10 @@ public class MainActivity extends Activity {
             serialPort = chosen.getPorts().get(0);
             serialPort.open(usbConnection);
             serialPort.setParameters(115200, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE);
-            // ArduinoGPTHex Mega2560 profile:
-            // setPostOpenResetBehavior("DTR-RTS;50;250;true")
-            // Reset is performed immediately after opening the serial port.
-            if (selectedBoard == BoardProfile.Board.MEGA2560) {
-                serialPort.setDTR(true);
-                serialPort.setRTS(true);
-                Thread.sleep(50);
-                serialPort.setDTR(false);
-                serialPort.setRTS(false);
-                Thread.sleep(250);
-                // setSleepAfterOpen(250)
-                Thread.sleep(250);
-            } else {
+            // Mega reset is deliberately deferred until upload starts.
+            // ArduinoGPTHex performs its post-open reset inside programmer.Open(),
+            // immediately before EstablishSync(), not when the user merely connects.
+            if (selectedBoard == BoardProfile.Board.UNO) {
                 // Keep the already-tested UNO open/reset behavior unchanged.
                 serialPort.setDTR(false);
             }
@@ -427,8 +418,17 @@ public class MainActivity extends Activity {
         final BoardProfile.Board board = selectedBoard;
         executor.execute(() -> {
             try {
-                // Mega reset is executed immediately after opening the serial port,
-                // matching ArduinoGPTHex post-open reset behavior.
+                // Match ArduinoGPTHex Open(): perform Mega post-open DTR/RTS reset
+                // immediately before STK500v2 sync, then wait its configured 250 ms.
+                if (board == BoardProfile.Board.MEGA2560) {
+                    port.setDTR(true);
+                    port.setRTS(true);
+                    Thread.sleep(50);
+                    port.setDTR(false);
+                    port.setRTS(false);
+                    Thread.sleep(250);
+                    Thread.sleep(250);
+                }
                 if (board == BoardProfile.Board.UNO) {
                     new Stk500v1Programmer(port).upload(image, (written, total) -> runOnUiThread(() -> {
                         int percent = total == 0 ? 0 : (int)(written * 100L / total);
