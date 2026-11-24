@@ -487,21 +487,21 @@ public class MainActivity extends Activity {
         Throwable current = error;
         int depth = 0;
         while (current != null && depth < 10) {
-            if (depth > 0) details.append("\\nПричинено от: ");
+            if (depth > 0) details.append("\nПричинено от: ");
             details.append(current.getClass().getName());
             if (current.getMessage() != null && !current.getMessage().isEmpty())
                 details.append(": ").append(current.getMessage());
             current = current.getCause();
             depth++;
         }
-        details.append("\\n\\nФайл: ").append(firmwareName);
-        details.append("\\nОбхват на HEX: ").append(image.highestAddress + 1).append(" байта");
-        details.append("\\nUSB диагностика: ").append(usbDiagnostics);
-        details.append("\\n\\nТехнически стек: ");
+        details.append("\n\nФайл: ").append(firmwareName);
+        details.append("\nОбхват на HEX: ").append(image.highestAddress + 1).append(" байта");
+        details.append("\nUSB диагностика: ").append(usbDiagnostics);
+        details.append("\n\nТехнически стек: ");
         java.io.StringWriter trace = new java.io.StringWriter();
         error.printStackTrace(new java.io.PrintWriter(trace));
         details.append(trace);
-        details.append("\\n\\nНе изключвай платката, докато не приключи опитът за възстановяване.");
+        details.append("\n\nНе изключвай платката, докато не приключи опитът за възстановяване.");
         return details.toString();
     }
 
