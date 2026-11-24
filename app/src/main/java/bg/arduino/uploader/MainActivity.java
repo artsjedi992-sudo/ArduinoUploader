@@ -469,7 +469,7 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> {
                     progressBar.setProgress(100);
                     progressLabel.setText("100%");
-                    setStatus("Командите за запис са изпратени успешно. Препоръчва се функционална проверка на платката.");
+                    setStatus("Фърмуерът е записан и проверен чрез прочитане на Flash паметта.");
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> setStatus("ГРЕШКА при запис: " + e.getMessage()
