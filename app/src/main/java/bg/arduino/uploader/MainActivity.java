@@ -450,11 +450,25 @@ public class MainActivity extends Activity {
                     setStatus("Фърмуерът е записан и проверен чрез прочитане на Flash паметта.");
                 });
             } catch (Exception e) {
+                final String errorDetails = buildUploadErrorDetails(e, board, image);
                 runOnUiThread(() -> {
                     progressLabel.setText("ГРЕШКА — качването е прекъснато");
-                    setStatus("ГРЕШКА при запис: " + e.getMessage()
-                            + "\nUSB диагностика: " + usbDiagnostics
-                            + "\nНе изключвай захранването веднага; изчакай и опитай отново.");
+                    setStatus(errorDetails);
+                    // Отделен диалог гарантира, че диагностиката се вижда и може да се копира.
+                    new android.app.AlertDialog.Builder(MainActivity.this)
+                            .setTitle("Подробности за грешката")
+                            .setMessage(errorDetails)
+                            .setPositiveButton("Копирай грешката", (dialog, which) -> {
+                                android.content.ClipboardManager clipboard =
+                                        (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                                if (clipboard != null) {
+                                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText(
+                                            "ArduinoUploader error", errorDetails));
+                                    Toast.makeText(MainActivity.this, "Диагностиката е копирана.", Toast.LENGTH_SHORT).show();
+                                }
+                            })
+                            .setNegativeButton("Затвори", null)
+                            .show();
                 });
             } finally {
                 runOnUiThread(() -> {
@@ -463,6 +477,32 @@ public class MainActivity extends Activity {
                 });
             }
         });
+    }
+
+    /** Събира причината за грешката, вложените причини и USB параметрите. */
+    private String buildUploadErrorDetails(Exception error, BoardProfile.Board board, HexParser.Image image) {
+        StringBuilder details = new StringBuilder();
+        details.append("Качването към ").append(board.label).append(" е прекъснато.\n\n");
+        details.append("Причина: ");
+        Throwable current = error;
+        int depth = 0;
+        while (current != null && depth < 10) {
+            if (depth > 0) details.append("\\nПричинено от: ");
+            details.append(current.getClass().getName());
+            if (current.getMessage() != null && !current.getMessage().isEmpty())
+                details.append(": ").append(current.getMessage());
+            current = current.getCause();
+            depth++;
+        }
+        details.append("\\n\\nФайл: ").append(firmwareName);
+        details.append("\\nОбхват на HEX: ").append(image.highestAddress + 1).append(" байта");
+        details.append("\\nUSB диагностика: ").append(usbDiagnostics);
+        details.append("\\n\\nТехнически стек: ");
+        java.io.StringWriter trace = new java.io.StringWriter();
+        error.printStackTrace(new java.io.PrintWriter(trace));
+        details.append(trace);
+        details.append("\\n\\nНе изключвай платката, докато не приключи опитът за възстановяване.");
+        return details.toString();
     }
 
     private void updateButtons() {
