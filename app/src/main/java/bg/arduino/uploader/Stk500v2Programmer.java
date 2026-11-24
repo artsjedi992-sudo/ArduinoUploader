@@ -131,7 +131,10 @@ public final class Stk500v2Programmer {
                 Arrays.fill(page, (byte) 0xFF);
                 System.arraycopy(image.data, address, page, 0, validLength);
 
-                byte[] writePayload = new byte[10 + PAGE_SIZE];
+                // Reference ExecuteProgramPageRequest parameters after command:
+                // lenHi, lenLo, mode, delay, write[0], write[1], read[0], poll1, poll2.
+                // Exactly 9 parameter bytes; no extra padding byte.
+                byte[] writePayload = new byte[9 + PAGE_SIZE];
                 writePayload[0] = (byte) (PAGE_SIZE >>> 8);
                 writePayload[1] = (byte) PAGE_SIZE;
                 writePayload[2] = (byte) 0xC1;
@@ -141,8 +144,7 @@ public final class Stk500v2Programmer {
                 writePayload[6] = (byte) 0x20;
                 writePayload[7] = 0x00;
                 writePayload[8] = 0x00;
-                writePayload[9] = 0x00;
-                System.arraycopy(page, 0, writePayload, 10, PAGE_SIZE);
+                System.arraycopy(page, 0, writePayload, 9, PAGE_SIZE);
                 checkResponse(command(PROGRAM_FLASH_ISP, writePayload), PROGRAM_FLASH_ISP,
                         "Запис на Flash страница 0x" + Integer.toHexString(address));
 
