@@ -421,12 +421,17 @@ public class MainActivity extends Activity {
                     if (board == BoardProfile.Board.MEGA2560) {
                         runOnUiThread(() -> {
                             progressLabel.setText("Свързване с Mega bootloader…");
-                            setStatus("Mega 2560: изпълнявам DTR reset и подготвям STK500v2 връзката…");
+                            setStatus("Mega 2560: reset по профила на ArduinoGPTHex (DTR+RTS, 50/250 ms) …");
                         });
+                        // ArduinoGPTHex Mega2560.setPostOpenResetBehavior("DTR-RTS;50;250;true")
                         port.setDTR(true);
-                        Thread.sleep(100);
+                        port.setRTS(true);
+                        Thread.sleep(50);
                         port.setDTR(false);
-                        Thread.sleep(300);
+                        port.setRTS(false);
+                        Thread.sleep(250);
+                        // ArduinoGPTHex Mega2560.setSleepAfterOpen(250)
+                        Thread.sleep(250);
                     } else {
                         port.setDTR(false);
                         Thread.sleep(50);
