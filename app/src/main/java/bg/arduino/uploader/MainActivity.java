@@ -227,8 +227,22 @@ public class MainActivity extends Activity {
             serialPort = chosen.getPorts().get(0);
             serialPort.open(usbConnection);
             serialPort.setParameters(115200, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE);
-            // DTR се активира непосредствено преди upload за reset и готов CDC сериен канал.
-            serialPort.setDTR(false);
+            // ArduinoGPTHex Mega2560 profile:
+            // setPostOpenResetBehavior("DTR-RTS;50;250;true")
+            // Reset is performed immediately after opening the serial port.
+            if (selectedBoard == BoardProfile.Board.MEGA2560) {
+                serialPort.setDTR(true);
+                serialPort.setRTS(true);
+                Thread.sleep(50);
+                serialPort.setDTR(false);
+                serialPort.setRTS(false);
+                Thread.sleep(250);
+                // setSleepAfterOpen(250)
+                Thread.sleep(250);
+            } else {
+                // Keep the already-tested UNO open/reset behavior unchanged.
+                serialPort.setDTR(false);
+            }
             StringBuilder diagnostic = new StringBuilder();
             diagnostic.append("Драйвер: ").append(chosen.getClass().getName())
                     .append("; сериен портове: ").append(chosen.getPorts().size())
@@ -413,44 +427,8 @@ public class MainActivity extends Activity {
         final BoardProfile.Board board = selectedBoard;
         executor.execute(() -> {
             try {
-                // UNO и Mega използват различни reset времеви последователности.
-                // UNO: запазваме вече проверената от потребителя последователност.
-                // Mega: DTR се активира, след което се освобождава, за да се получи
-                // отчетлив reset фронт към ATmega2560 преди STK500v2 sign-on.
-                try {
-                    if (board == BoardProfile.Board.MEGA2560) {
-                        runOnUiThread(() -> {
-                            progressLabel.setText("Свързване с Mega bootloader…");
-                            setStatus("Mega 2560: reset по профила на ArduinoGPTHex (DTR+RTS, 50/250 ms) …");
-                        });
-                        // ArduinoGPTHex Mega2560.setPostOpenResetBehavior("DTR-RTS;50;250;true")
-                        port.setDTR(true);
-                        port.setRTS(true);
-                        Thread.sleep(50);
-                        port.setDTR(false);
-                        port.setRTS(false);
-                        Thread.sleep(250);
-                        // ArduinoGPTHex Mega2560.setSleepAfterOpen(250)
-                        Thread.sleep(250);
-                    } else {
-                        port.setDTR(false);
-                        Thread.sleep(50);
-                        port.setDTR(true);
-                        Thread.sleep(250);
-                    }
-                } catch (Exception resetError) {
-                    runOnUiThread(() -> setStatus("USB адаптерът отказа DTR reset ("
-                            + resetError.getMessage() + "). Натисни RESET на платката и опитай отново."));
-                    throw new Exception("Неуспешен DTR reset: " + resetError.getMessage(), resetError);
-                }
-                // Стандартният Mega bootloader остава в режим на приемане няколко секунди.
-                if (board == BoardProfile.Board.MEGA2560) {
-                    Thread.sleep(500);
-                    runOnUiThread(() -> {
-                        progressLabel.setText("0% — STK500v2 handshake");
-                        setStatus("Mega 2560: изпращам STK500v2 SIGN_ON и чакам отговор от bootloader-а…");
-                    });
-                }
+                // Mega reset is executed immediately after opening the serial port,
+                // matching ArduinoGPTHex post-open reset behavior.
                 if (board == BoardProfile.Board.UNO) {
                     new Stk500v1Programmer(port).upload(image, (written, total) -> runOnUiThread(() -> {
                         int percent = total == 0 ? 0 : (int)(written * 100L / total);
@@ -472,9 +450,12 @@ public class MainActivity extends Activity {
                     setStatus("Фърмуерът е записан и проверен чрез прочитане на Flash паметта.");
                 });
             } catch (Exception e) {
-                runOnUiThread(() -> setStatus("ГРЕШКА при запис: " + e.getMessage()
-                        + "\nUSB диагностика: " + usbDiagnostics
-                        + "\nНе изключвай захранването веднага; изчакай и опитай отново."));
+                runOnUiThread(() -> {
+                    progressLabel.setText("ГРЕШКА — качването е прекъснато");
+                    setStatus("ГРЕШКА при запис: " + e.getMessage()
+                            + "\nUSB диагностика: " + usbDiagnostics
+                            + "\nНе изключвай захранването веднага; изчакай и опитай отново.");
+                });
             } finally {
                 runOnUiThread(() -> {
                     connectButton.setEnabled(true);
