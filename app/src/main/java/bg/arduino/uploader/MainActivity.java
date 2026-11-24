@@ -436,7 +436,7 @@ public class MainActivity extends Activity {
                 } catch (Exception resetError) {
                     runOnUiThread(() -> setStatus("USB адаптерът отказа DTR reset ("
                             + resetError.getMessage() + "). Натисни RESET на платката и опитай отново."));
-                    throw new IOException("Неуспешен DTR reset: " + resetError.getMessage(), resetError);
+                    throw new Exception("Неуспешен DTR reset: " + resetError.getMessage(), resetError);
                 }
                 // Стандартният Mega bootloader остава в режим на приемане няколко секунди.
                 if (board == BoardProfile.Board.MEGA2560) {
