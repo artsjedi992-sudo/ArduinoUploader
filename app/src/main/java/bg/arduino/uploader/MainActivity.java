@@ -413,25 +413,39 @@ public class MainActivity extends Activity {
         final BoardProfile.Board board = selectedBoard;
         executor.execute(() -> {
             try {
-                // UNO R3 профилът в ArduinoGPTHex използва DTR reset и 250 ms
-                // изчакване след отваряне на серийния порт. Не превключваме RTS тук:
-                // за автоматичния reset на UNO е необходим DTR.
-                boolean automaticReset = true;
+                // UNO и Mega използват различни reset времеви последователности.
+                // UNO: запазваме вече проверената от потребителя последователност.
+                // Mega: DTR се активира, след което се освобождава, за да се получи
+                // отчетлив reset фронт към ATmega2560 преди STK500v2 sign-on.
                 try {
-                    port.setDTR(false);
-                    Thread.sleep(50);
-                    port.setDTR(true);
-                    Thread.sleep(250);
+                    if (board == BoardProfile.Board.MEGA2560) {
+                        runOnUiThread(() -> {
+                            progressLabel.setText("Свързване с Mega bootloader…");
+                            setStatus("Mega 2560: изпълнявам DTR reset и подготвям STK500v2 връзката…");
+                        });
+                        port.setDTR(true);
+                        Thread.sleep(100);
+                        port.setDTR(false);
+                        Thread.sleep(300);
+                    } else {
+                        port.setDTR(false);
+                        Thread.sleep(50);
+                        port.setDTR(true);
+                        Thread.sleep(250);
+                    }
                 } catch (Exception resetError) {
-                    automaticReset = false;
-                    runOnUiThread(() -> setStatus("USB адаптерът отказа автоматичния DTR reset ("
-                            + resetError.getMessage() + "). Натисни RESET на Arduino UNO сега; "
-                            + "ще опитам да се синхронизирам ръчно."));
-                    // При отказан DTR оставяме време за ръчен RESET след показване на съобщението.
-                    Thread.sleep(3000);
+                    runOnUiThread(() -> setStatus("USB адаптерът отказа DTR reset ("
+                            + resetError.getMessage() + "). Натисни RESET на платката и опитай отново."));
+                    throw new IOException("Неуспешен DTR reset: " + resetError.getMessage(), resetError);
                 }
-                // Mega bootloader-ът стартира по-бавно; UNO следва времето на AVRDUDE.
-                if (board == BoardProfile.Board.MEGA2560) Thread.sleep(1100);
+                // Стандартният Mega bootloader остава в режим на приемане няколко секунди.
+                if (board == BoardProfile.Board.MEGA2560) {
+                    Thread.sleep(500);
+                    runOnUiThread(() -> {
+                        progressLabel.setText("0% — STK500v2 handshake");
+                        setStatus("Mega 2560: изпращам STK500v2 SIGN_ON и чакам отговор от bootloader-а…");
+                    });
+                }
                 if (board == BoardProfile.Board.UNO) {
                     new Stk500v1Programmer(port).upload(image, (written, total) -> runOnUiThread(() -> {
                         int percent = total == 0 ? 0 : (int)(written * 100L / total);
