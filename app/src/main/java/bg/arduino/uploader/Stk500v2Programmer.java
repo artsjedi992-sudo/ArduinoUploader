@@ -1,10 +1,14 @@
 package bg.arduino.uploader;
 
 import com.hoho.android.usbserial.driver.UsbSerialPort;
+import com.hoho.android.usbserial.util.SerialInputOutputManager;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * STK500v2 programmer ported from:
@@ -30,14 +34,37 @@ public final class Stk500v2Programmer {
     private static final int PAGE_SIZE = 256;
 
     private final UsbSerialPort port;
+    private final ArrayBlockingQueue<Integer> incoming = new ArrayBlockingQueue<>(16384);
+    private final AtomicReference<Exception> ioError = new AtomicReference<>();
+    private final SerialInputOutputManager ioManager;
     private int sequence = 0;
 
     public Stk500v2Programmer(UsbSerialPort port) {
         this.port = port;
+        this.ioManager = new SerialInputOutputManager(port, new SerialInputOutputManager.Listener() {
+            @Override public void onNewData(byte[] data) {
+                for (byte value : data) incoming.offer(value & 0xFF);
+            }
+            @Override public void onRunError(Exception e) {
+                ioError.compareAndSet(null, e);
+            }
+        });
+    }
+
+    /** Match ArduinoGPTHex's asynchronous serial receive queue. */
+    public void upload(HexParser.Image image, Progress progress) throws Exception {
+        incoming.clear();
+        ioError.set(null);
+        ioManager.start();
+        try {
+            uploadWithSerialQueue(image, progress);
+        } finally {
+            ioManager.stop();
+        }
     }
 
     /** Same order as ArduinoGPTHex: sync, signature, initialize, enable, write, verify, leave. */
-    public void upload(HexParser.Image image, Progress progress) throws Exception {
+    private void uploadWithSerialQueue(HexParser.Image image, Progress progress) throws Exception {
         byte[] signOn = command(SIGN_ON, new byte[0]);
         if (signOn.length < 11 || (signOn[1] & 0xFF) != STATUS_OK) {
             throw new IOException("STK500v2 SIGN_ON неуспешен или отговорът е непълен.");
@@ -240,29 +267,22 @@ public final class Stk500v2Programmer {
     private void readExact(byte[] buffer, long deadline) throws IOException {
         int offset = 0;
         while (offset < buffer.length && System.currentTimeMillis() < deadline) {
-            int timeout = Math.min(1000,
-                    (int) Math.max(1, deadline - System.currentTimeMillis()));
+            Exception backgroundError = ioError.get();
+            if (backgroundError != null) {
+                throw new IOException("USB serial receive error: " + backgroundError.getMessage(), backgroundError);
+            }
+            long remaining = deadline - System.currentTimeMillis();
             try {
-                byte[] chunk = new byte[buffer.length - offset];
-                int count = port.read(chunk, timeout);
-                if (count > 0) {
-                    int copied = Math.min(count, buffer.length - offset);
-                    System.arraycopy(chunk, 0, buffer, offset, copied);
-                    offset += copied;
-                }
-            } catch (IOException e) {
-                String message = e.getMessage();
-                if (message == null || !message.contains("USB get_status request failed")) throw e;
-                try {
-                    Thread.sleep(40);
-                } catch (InterruptedException interrupted) {
-                    Thread.currentThread().interrupt();
-                    throw new IOException("Операцията е прекъсната.", interrupted);
-                }
+                Integer value = incoming.poll(Math.min(remaining, 250), TimeUnit.MILLISECONDS);
+                if (value != null) buffer[offset++] = (byte) (value & 0xFF);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                throw new IOException("Операцията е прекъсната.", interrupted);
             }
         }
         if (offset != buffer.length) {
-            throw new IOException("Няма пълен отговор от Mega bootloader-а в рамките на 5 секунди.");
+            throw new IOException("Mega bootloader не отговори по STK500v2. Получени "
+                    + offset + " от " + buffer.length + " очаквани байта.");
         }
     }
 }
